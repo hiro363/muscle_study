@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>筋肉 × 神経支配 × 起始・停止｜クイズアプリ</title>
+<style>
+  :root{--bg:#0f1115;--card:#171a21;--ink:#e7ebf3;--muted:#9aa4b2;--accent:#4da3ff;--accent2:#7bf;--danger:#ff6b6b;--ok:#22c55e;}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+    color:var(--ink); background:linear-gradient(180deg,#0d0f14,#0f1115 30%, #11151c);
+  }
+  header{
+    position:sticky; top:0; z-index:10; backdrop-filter:saturate(150%) blur(8px);
+    background:rgba(15,17,21,0.75); border-bottom:1px solid #1f2430;
+    padding:10px 12px;
+  }
+  .title{display:flex; align-items:center; gap:10px; font-weight:700;}
+  .title .badge{font-size:12px; color:#0b1320; background:linear-gradient(135deg,var(--accent),#80bfff);
+    padding:3px 8px; border-radius:999px;}
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  select,button,input[type="text"]{
+    background:var(--card); color:var(--ink); border:1px solid #2a2f3a;
+    border-radius:10px; padding:10px 12px; font-size:14px; outline:none;
+  }
+  select:focus,button:focus,input:focus{border-color:var(--accent)}
+  button{cursor:pointer}
+  .ghost{background:transparent;border-color:#2a2f3a;color:var(--muted)}
+  .accent{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#0b1320; border:none; font-weight:700}
+  .danger{background:#2a1212; border-color:#592626; color:#ffb3b3}
+  main{padding:16px; max-width:900px; margin:0 auto}
+  .card{
+    background:rgba(23,26,33,0.9); border:1px solid #1f2430; border-radius:16px; padding:16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  }
+  .grid{display:grid; grid-template-columns:1fr; gap:12px}
+  @media(min-width:650px){ .grid{grid-template-columns: 2fr 1fr} }
+  .qtext{font-size:18px; line-height:1.5}
+  .qmeta{color:var(--muted); font-size:12px}
+  .choices{display:grid; gap:10px; margin-top:10px}
+  .choice{padding:12px; border-radius:12px; border:1px solid #2a2f3a; background:#141821; text-align:left}
+  .choice.correct{border-color:rgba(34,197,94,0.6); box-shadow:0 0 0 2px rgba(34,197,94,0.2) inset}
+  .choice.wrong{border-color:rgba(255,107,107,0.6); box-shadow:0 0 0 2px rgba(255,107,107,0.15) inset}
+  .pill{display:inline-block; padding:3px 8px; border-radius:999px; background:#141821; border:1px solid #2a2f3a; color:var(--muted); font-size:12px}
+  .stack{display:flex; gap:6px; flex-wrap:wrap}
+  .mini{font-size:12px; padding:6px 8px}
+  .kbd{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas; font-size:12px; background:#11151c; border:1px solid #2a2f3a; padding:2px 6px; border-radius:6px}
+  .ok{color:var(--ok)} .bad{color:var(--danger)}
+  .hidden{display:none!important}
+  details{border:1px dashed #2a2f3a; border-radius:12px; padding:8px 10px}
+  summary{cursor:pointer; color:var(--muted)}
+  .footer{color:#8a93a3; font-size:12px; text-align:center; margin:18px 0}
+  .tag{background:#122233; border:1px solid #1e3755; color:#9ec8ff}
+  .fav{border-color:#6654ff; background:rgba(102,84,255,0.1)}
+</style>
+</head>
+<body>
+<header>
+  <div class="title">
+    <div>💪 筋肉クイズ</div>
+    <div class="badge">名前・神経支配・起始/停止</div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <select id="region">
+      <option value="all">出題範囲：すべて</option>
+      <option>上肢</option>
+      <option>前腕・手</option>
+      <option>下肢</option>
+      <option>体幹</option>
+      <option>頸部</option>
+    </select>
+    <select id="mode">
+      <option value="mc">出題形式：4択</option>
+      <option value="type">出題形式：入力</option>
+      <option value="card">出題形式：フラッシュカード</option>
+    </select>
+    <select id="ask">
+      <option value="mixed">質問タイプ：MIX</option>
+      <option value="name_to_nerve">筋 → 神経</option>
+      <option value="name_to_oi">筋 → 起始/停止</option>
+      <option value="nerve_to_name">神経 → 筋</option>
+      <option value="oi_to_name">起始/停止 → 筋</option>
+    </select>
+    <button class="ghost mini" id="shuffle">シャッフル</button>
+    <button class="ghost mini" id="onlyMiss">間違いのみ</button>
+    <button class="ghost mini" id="toggleFav">★ お気に入り</button>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <section class="card" id="quiz">
+      <div class="qmeta" id="qmeta">#1 / 0</div>
+      <div class="qtext" id="qtext">読み込み中…</div>
+
+      <div class="choices" id="choices"></div>
+
+      <div id="typeWrap" class="hidden">
+        <input id="typeInput" type="text" placeholder="ここに入力（例：腋窩神経）">
+        <div class="row" style="margin-top:8px">
+          <button class="accent" id="typeCheck">答え合わせ</button>
+          <button class="ghost" id="typeShow">答えを見る</button>
+        </div>
+      </div>
+
+      <details id="reveal" class="hidden" style="margin-top:12px">
+        <summary>解説 / 全情報を表示</summary>
+        <div id="explain" style="margin-top:8px"></div>
+      </details>
+
+      <div class="row" style="margin-top:10px">
+        <button id="prev" class="ghost mini">← 前へ</button>
+        <button id="again" class="ghost mini">もう一度</button>
+        <button id="next" class="accent mini">次へ →</button>
+      </div>
+    </section>
+
+    <aside class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px">
+        <div>進捗</div>
+        <button id="reset" class="danger mini">成績リセット</button>
+      </div>
+      <div style="margin-top:8px" class="stack">
+        <span class="pill">正解 <span id="statRight">0</span></span>
+        <span class="pill">不正解 <span id="statWrong">0</span></span>
+        <span class="pill">連続正解 <span id="streak">0</span></span>
+        <span class="pill">★ <span id="favCount">0</span></span>
+      </div>
+      <div style="margin-top:12px">
+        <details>
+          <summary>出題リストを作成/編集（JSON）</summary>
+          <textarea id="jsonArea" style="width:100%; height:180px; margin-top:8px; background:#0f1219; color:#dbe7ff; border:1px solid #2a2f3a; border-radius:12px; padding:10px"></textarea>
+          <div class="row" style="margin-top:8px">
+            <button id="applyJson" class="ghost">反映する</button>
+            <button id="downloadJson" class="ghost">JSONを保存</button>
+          </div>
+        </details>
+      </div>
+      <div style="margin-top:12px">
+        <details>
+          <summary>使い方</summary>
+          <ul style="margin-top:8px; line-height:1.6">
+            <li>出題形式（4択 / 入力 / フラッシュカード）と質問タイプを選びます。</li>
+            <li>「間違いのみ」で弱点だけを反復できます（簡易SRS）。</li>
+            <li>★でお気に入り登録。出題は「お気に入りのみ」に切替可能（上部ボタン長押し）。</li>
+            <li>右側の「編集」でリストを追加・修正できます（JSON）。</li>
+          </ul>
+          <p class="qmeta">iPhone/オフライン対応。データ・成績は端末内（localStorage）に保存されます。</p>
+        </details>
+      </div>
+    </aside>
+  </div>
+
+  <div class="footer">© あなた専用｜学習が進むほど賢く出題します</div>
+</main>
+
+<script>
+// ====== 学習データ ======
+const DEFAULT_ITEMS = [
+  // —— 上肢（肩甲帯・上腕） ——
+  {name_ja:"僧帽筋", name_lat:"Trapezius", region:"体幹", nerve:"副神経（XI）＋頸神経叢C3–C4", origin:"外後頭隆起・上項線・項靭帯・C7–T12棘突起", insertion:"鎖骨外側1/3・肩峰・肩甲棘"},
+  {name_ja:"広背筋", name_lat:"Latissimus dorsi", region:"体幹", nerve:"胸背神経（C6–C8）", origin:"T7–L5棘突起・胸腰筋膜・腸骨稜・下位肋骨", insertion:"上腕骨小結節稜（結節間溝）"},
+  {name_ja:"三角筋", name_lat:"Deltoid", region:"上肢", nerve:"腋窩神経（C5–C6）", origin:"鎖骨外側1/3・肩峰・肩甲棘", insertion:"上腕骨三角筋粗面"},
+  {name_ja:"棘上筋", name_lat:"Supraspinatus", region:"上肢", nerve:"肩甲上神経（C5–C6）", origin:"肩甲骨棘上窩", insertion:"上腕骨大結節上面"},
+  {name_ja:"棘下筋", name_lat:"Infraspinatus", region:"上肢", nerve:"肩甲上神経（C5–C6）", origin:"肩甲骨棘下窩", insertion:"上腕骨大結節中面"},
+  {name_ja:"小円筋", name_lat:"Teres minor", region:"上肢", nerve:"腋窩神経（C5–C6）", origin:"肩甲骨外側縁", insertion:"上腕骨大結節下面"},
+  {name_ja:"大円筋", name_lat:"Teres major", region:"上肢", nerve:"肩甲下神経（下）（C5–C6）", origin:"肩甲骨下角後面", insertion:"上腕骨小結節稜"},
+  {name_ja:"肩甲下筋", name_lat:"Subscapularis", region:"上肢", nerve:"肩甲下神経（上・下）（C5–C6）", origin:"肩甲骨前面（肩甲下窩）", insertion:"上腕骨小結節"},
+  {name_ja:"大胸筋", name_lat:"Pectoralis major", region:"体幹", nerve:"外側・内側胸筋神経（C5–T1）", origin:"鎖骨内側半・胸骨・第1–6肋軟骨・腹直筋鞘", insertion:"上腕骨大結節稜（結節間溝外側唇）"},
+  {name_ja:"小胸筋", name_lat:"Pectoralis minor", region:"体幹", nerve:"内側胸筋神経（C8–T1）", origin:"第3–5肋骨前端", insertion:"肩甲骨烏口突起"},
+  {name_ja:"前鋸筋", name_lat:"Serratus anterior", region:"体幹", nerve:"長胸神経（C5–C7）", origin:"第1–8肋骨外側面", insertion:"肩甲骨内側縁（前面）"},
+  {name_ja:"菱形筋", name_lat:"Rhomboids", region:"体幹", nerve:"背側肩甲骨神経（C4–C5）", origin:"C7–T5棘突起・項靭帯", insertion:"肩甲骨内側縁"},
+  {name_ja:"肩甲挙筋", name_lat:"Levator scapulae", region:"体幹", nerve:"背側肩甲骨神経（C5）＋頸神経叢C3–C4", origin:"C1–C4横突起後結節", insertion:"肩甲骨上角・内側縁上部"},
+  {name_ja:"上腕二頭筋", name_lat:"Biceps brachii", region:"上肢", nerve:"筋皮神経（C5–C6）", origin:"長頭：肩甲骨関節上結節／短頭：烏口突起", insertion:"橈骨粗面・前腕筋膜（腱膜）"},
+  {name_ja:"烏口腕筋", name_lat:"Coracobrachialis", region:"上肢", nerve:"筋皮神経（C5–C7）", origin:"烏口突起", insertion:"上腕骨内側面中部"},
+  {name_ja:"上腕筋", name_lat:"Brachialis", region:"上肢", nerve:"筋皮神経（C5–C6）＋橈骨神経一部", origin:"上腕骨前面遠位半分", insertion:"尺骨粗面・冠状突起"},
+  {name_ja:"上腕三頭筋", name_lat:"Triceps brachii", region:"上肢", nerve:"橈骨神経（C6–C8）", origin:"長頭：関節下結節／外側頭・内側頭：上腕骨後面", insertion:"尺骨肘頭"},
+  // —— 前腕・手 ——
+  {name_ja:"円回内筋", name_lat:"Pronator teres", region:"前腕・手", nerve:"正中神経（C6–C7）", origin:"上腕骨内側上顆・尺骨鈎状突起（冠状突起）", insertion:"橈骨外側面"},
+  {name_ja:"長掌筋", name_lat:"Palmaris longus", region:"前腕・手", nerve:"正中神経（C7–C8）", origin:"上腕骨内側上顆", insertion:"手掌腱膜"},
+  {name_ja:"橈側手根屈筋", name_lat:"Flexor carpi radialis", region:"前腕・手", nerve:"正中神経（C6–C7）", origin:"上腕骨内側上顆", insertion:"第2・3中手骨底"},
+  {name_ja:"尺側手根屈筋", name_lat:"Flexor carpi ulnaris", region:"前腕・手", nerve:"尺骨神経（C8–T1）", origin:"上腕骨内側上顆・尺骨尺側縁", insertion:"豆状骨・有鉤骨鉤・第5中手骨底"},
+  {name_ja:"浅指屈筋", name_lat:"Flexor digitorum superficialis", region:"前腕・手", nerve:"正中神経（C7–T1）", origin:"上腕骨内側上顆・尺骨・橈骨", insertion:"第2–5指中節骨底"},
+  {name_ja:"深指屈筋（橈側）", name_lat:"FDP (lateral half)", region:"前腕・手", nerve:"前骨間神経（正中）（C8–T1）", origin:"尺骨前面・骨間膜", insertion:"第2・3指末節骨底"},
+  {name_ja:"深指屈筋（尺側）", name_lat:"FDP (medial half)", region:"前腕・手", nerve:"尺骨神経（C8–T1）", origin:"尺骨前面・骨間膜", insertion:"第4・5指末節骨底"},
+  {name_ja:"長母指屈筋", name_lat:"Flexor pollicis longus", region:"前腕・手", nerve:"前骨間神経（正中）（C8–T1）", origin:"橈骨前面・骨間膜", insertion:"母指末節骨底"},
+  {name_ja:"回外筋", name_lat:"Supinator", region:"前腕・手", nerve:"後骨間神経（橈骨神経深枝）（C6–C7）", origin:"上腕骨外側上顆・尺骨回外筋稜", insertion:"橈骨近位1/3外側面"},
+  {name_ja:"長橈側手根伸筋", name_lat:"ECRL", region:"前腕・手", nerve:"橈骨神経（C6–C7）", origin:"上腕骨外側上顆上稜", insertion:"第2中手骨底背側"},
+  {name_ja:"短橈側手根伸筋", name_lat:"ECRB", region:"前腕・手", nerve:"後骨間神経（C7–C8）", origin:"上腕骨外側上顆", insertion:"第3中手骨底背側"},
+  {name_ja:"総指伸筋", name_lat:"Extensor digitorum", region:"前腕・手", nerve:"後骨間神経（C7–C8）", origin:"上腕骨外側上顆", insertion:"第2–5指伸筋腱膜"},
+  {name_ja:"尺側手根伸筋", name_lat:"ECU", region:"前腕・手", nerve:"後骨間神経（C7–C8）", origin:"上腕骨外側上顆・尺骨", insertion:"第5中手骨底背側"},
+  {name_ja:"短母指伸筋／長母指伸筋", name_lat:"EPB/EPL", region:"前腕・手", nerve:"後骨間神経（C7–C8）", origin:"橈骨・尺骨後面／骨間膜", insertion:"母指基節骨底／末節骨底"},
+  {name_ja:"長母指外転筋", name_lat:"Abductor pollicis longus", region:"前腕・手", nerve:"後骨間神経（C7–C8）", origin:"橈骨・尺骨後面／骨間膜", insertion:"第1中手骨底"},
+  // —— 下肢 ——
+  {name_ja:"大殿筋", name_lat:"Gluteus maximus", region:"下肢", nerve:"下殿神経（L5–S2）", origin:"腸骨後面・仙骨・尾骨・仙結節靭帯", insertion:"腸脛靭帯・大腿骨殿筋粗面"},
+  {name_ja:"中殿筋", name_lat:"Gluteus medius", region:"下肢", nerve:"上殿神経（L4–S1）", origin:"腸骨外側面", insertion:"大腿骨大転子外側面"},
+  {name_ja:"小殿筋", name_lat:"Gluteus minimus", region:"下肢", nerve:"上殿神経（L4–S1）", origin:"腸骨外側面", insertion:"大腿骨大転子前面"},
+  {name_ja:"大腿筋膜張筋", name_lat:"Tensor fasciae latae", region:"下肢", nerve:"上殿神経（L4–S1）", origin:"上前腸骨棘", insertion:"腸脛靭帯→脛骨外側顆（Gerdy結節）"},
+  {name_ja:"腸腰筋", name_lat:"Iliopsoas", region:"下肢", nerve:"大腰筋：腰神経叢（L1–L3）／腸骨筋：大腿神経（L2–L3）", origin:"大腰筋：T12–L5椎体・横突起／腸骨筋：腸骨窩", insertion:"大腿骨小転子"},
+  {name_ja:"大腿直筋", name_lat:"Rectus femoris", region:"下肢", nerve:"大腿神経（L2–L4）", origin:"下前腸骨棘・臼蓋上縁", insertion:"膝蓋骨→膝蓋靭帯→脛骨粗面"},
+  {name_ja:"外側広筋", name_lat:"Vastus lateralis", region:"下肢", nerve:"大腿神経（L2–L4）", origin:"大腿骨粗線外側唇・大転子", insertion:"膝蓋骨→膝蓋靭帯→脛骨粗面"},
+  {name_ja:"内側広筋", name_lat:"Vastus medialis", region:"下肢", nerve:"大腿神経（L2–L4）", origin:"大腿骨粗線内側唇", insertion:"膝蓋骨→膝蓋靭帯→脛骨粗面"},
+  {name_ja:"中間広筋", name_lat:"Vastus intermedius", region:"下肢", nerve:"大腿神経（L2–L4）", origin:"大腿骨前面", insertion:"膝蓋骨→膝蓋靭帯→脛骨粗面"},
+  {name_ja:"縫工筋", name_lat:"Sartorius", region:"下肢", nerve:"大腿神経（L2–L3）", origin:"上前腸骨棘", insertion:"鵞足（脛骨内側面近位部）"},
+  {name_ja:"薄筋", name_lat:"Gracilis", region:"下肢", nerve:"閉鎖神経（L2–L3）", origin:"恥骨下枝", insertion:"鵞足（脛骨内側面近位部）"},
+  {name_ja:"大内転筋", name_lat:"Adductor magnus", region:"下肢", nerve:"閉鎖神経（前部）（L2–L4）／坐骨神経脛骨部（後部）", origin:"恥骨下枝・坐骨枝・坐骨結節", insertion:"粗線内側唇〜内転筋結節"},
+  {name_ja:"長内転筋", name_lat:"Adductor longus", region:"下肢", nerve:"閉鎖神経（L2–L4）", origin:"恥骨体前面", insertion:"大腿骨粗線中1/3"},
+  {name_ja:"大腿二頭筋（長頭）", name_lat:"Biceps femoris long head", region:"下肢", nerve:"坐骨神経脛骨部（L5–S2）", origin:"坐骨結節", insertion:"腓骨頭"},
+  {name_ja:"大腿二頭筋（短頭）", name_lat:"Biceps femoris short head", region:"下肢", nerve:"坐骨神経総腓骨部（L5–S2）", origin:"大腿骨粗線外側唇", insertion:"腓骨頭"},
+  {name_ja:"半腱様筋", name_lat:"Semitendinosus", region:"下肢", nerve:"坐骨神経脛骨部（L5–S2）", origin:"坐骨結節", insertion:"鵞足（脛骨内側面近位部）"},
+  {name_ja:"半膜様筋", name_lat:"Semimembranosus", region:"下肢", nerve:"坐骨神経脛骨部（L5–S2）", origin:"坐骨結節", insertion:"脛骨内側顆後方"},
+  {name_ja:"前脛骨筋", name_lat:"Tibialis anterior", region:"下肢", nerve:"深腓骨神経（L4–L5）", origin:"脛骨外側顆・外側面近位部・骨間膜", insertion:"内側楔状骨・第1中足骨底内側"},
+  {name_ja:"長趾伸筋", name_lat:"Extensor digitorum longus", region:"下肢", nerve:"深腓骨神経（L5–S1）", origin:"脛骨外側顆・腓骨前面・骨間膜", insertion:"第2–5趾中・末節背側"},
+  {name_ja:"長腓骨筋", name_lat:"Fibularis (Peroneus) longus", region:"下肢", nerve:"浅腓骨神経（L5–S1）", origin:"腓骨頭・外側面上部", insertion:"第1中足骨底・内側楔状骨底（足底経由）"},
+  {name_ja:"短腓骨筋", name_lat:"Fibularis brevis", region:"下肢", nerve:"浅腓骨神経（L5–S1）", origin:"腓骨外側面下部", insertion:"第5中足骨粗面"},
+  {name_ja:"腓腹筋", name_lat:"Gastrocnemius", region:"下肢", nerve:"脛骨神経（S1–S2）", origin:"大腿骨内・外側顆の後面", insertion:"アキレス腱→踵骨隆起"},
+  {name_ja:"ヒラメ筋", name_lat:"Soleus", region:"下肢", nerve:"脛骨神経（S1–S2）", origin:"腓骨頭・ヒラメ筋線・脛骨", insertion:"アキレス腱→踵骨隆起"},
+  {name_ja:"後脛骨筋", name_lat:"Tibialis posterior", region:"下肢", nerve:"脛骨神経（L4–L5）", origin:"脛骨・腓骨後面・骨間膜", insertion:"舟状骨粗面・楔状骨・立方骨・第2–4中足骨底"},
+  {name_ja:"長母趾屈筋", name_lat:"Flexor hallucis longus", region:"下肢", nerve:"脛骨神経（S2–S3）", origin:"腓骨後面下部・骨間膜", insertion:"母趾末節骨底"},
+  // —— 体幹・頸部 ——
+  {name_ja:"腹直筋", name_lat:"Rectus abdominis", region:"体幹", nerve:"肋間神経（T7–T12）", origin:"恥骨稜・恥骨結合", insertion:"剣状突起・第5–7肋軟骨"},
+  {name_ja:"外腹斜筋", name_lat:"External oblique", region:"体幹", nerve:"肋間神経（T7–T12）", origin:"第5–12肋骨外側面", insertion:"白線・腸骨稜・鼡径靭帯"},
+  {name_ja:"内腹斜筋", name_lat:"Internal oblique", region:"体幹", nerve:"肋間神経（T7–T12）＋腸骨下腹・腸骨鼠径神経（L1）", origin:"胸腰筋膜・腸骨稜・鼡径靭帯", insertion:"第10–12肋骨・白線・腱弓"},
+  {name_ja:"腹横筋", name_lat:"Transversus abdominis", region:"体幹", nerve:"肋間神経（T7–T12）＋腸骨下腹・腸骨鼠径神経（L1）", origin:"第7–12肋軟骨内面・胸腰筋膜・腸骨稜・鼡径靭帯", insertion:"白線・恥骨稜"},
+  {name_ja:"胸鎖乳突筋", name_lat:"Sternocleidomastoid", region:"頸部", nerve:"副神経（XI）＋C2–C3", origin:"胸骨柄・鎖骨内側端", insertion:"乳様突起・上項線外側部"}
+];
+
+// ====== 進捗管理 ======
+const LS_KEY = "muscle_quiz_items_v1";
+const LS_STAT = "muscle_quiz_stats_v1";
+const LS_FAV  = "muscle_quiz_favs_v1";
+const LS_MODE = "muscle_quiz_prefs_v1";
+
+function loadItems(){
+  const saved = localStorage.getItem(LS_KEY);
+  return saved ? JSON.parse(saved) : DEFAULT_ITEMS;
+}
+function saveItems(data){ localStorage.setItem(LS_KEY, JSON.stringify(data)); }
+function loadStats(){
+  const s = localStorage.getItem(LS_STAT);
+  return s ? JSON.parse(s) : {right:0, wrong:0, streak:0, misses:[], last:0};
+}
+function saveStats(s){ localStorage.setItem(LS_STAT, JSON.stringify(s)); }
+function loadFav(){ const f = localStorage.getItem(LS_FAV); return f? JSON.parse(f): {}; }
+function saveFav(f){ localStorage.setItem(LS_FAV, JSON.stringify(f)); }
+function loadPrefs(){ const p = localStorage.getItem(LS_MODE); return p? JSON.parse(p): {}; }
+function savePrefs(p){ localStorage.setItem(LS_MODE, JSON.stringify(p)); }
+
+// ====== 出題エンジン ======
+let ITEMS = loadItems();
+let FAVS = loadFav();
+let STATS = loadStats();
+let PREFS = Object.assign({region:"all", mode:"mc", ask:"mixed", onlyMiss:false, onlyFav:false}, loadPrefs());
+
+const $ = (id)=>document.getElementById(id);
+const regionSel = $("region"); const modeSel = $("mode"); const askSel = $("ask");
+
+regionSel.value = PREFS.region; modeSel.value = PREFS.mode; askSel.value = PREFS.ask;
+
+const qmeta = $("qmeta"); const qtext = $("qtext"); const choices = $("choices");
+const explain = $("explain"); const reveal = $("reveal");
+const statRight = $("statRight"), statWrong=$("statWrong"), streak=$("streak"), favCount=$("favCount");
+const typeWrap=$("typeWrap"), typeInput=$("typeInput");
+
+let order = [...ITEMS.keys()];
+let idx = 0;
+let current = null;
+let currentAsk = "mixed";
+
+function filteredIndices(){
+  const reg = regionSel.value;
+  let base = ITEMS.map((_,i)=>i);
+  if(reg!=="all") base = base.filter(i=>ITEMS[i].region===reg);
+  if(PREFS.onlyFav) base = base.filter(i=>FAVS[i]);
+  if(PREFS.onlyMiss && STATS.misses.length){
+    base = base.filter(i=>STATS.misses.includes(i));
+  }
+  if(base.length===0) base = ITEMS.map((_,i)=>i);
+  return base;
+}
+
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+
+function pickQuestionType(){
+  const ask = askSel.value;
+  if(ask!=="mixed") return ask;
+  const types = ["name_to_nerve","name_to_oi","nerve_to_name","oi_to_name"];
+  return types[Math.floor(Math.random()*types.length)];
+}
+
+function makeMCOptions(correctIdx, field, count=4){
+  const opts = new Set([correctIdx]);
+  const pool = filteredIndices();
+  shuffle(pool);
+  for(const i of pool){
+    if(opts.size>=count) break;
+    if(i!==correctIdx){
+      // avoid same value duplicates
+      if(ITEMS[i][field] !== ITEMS[correctIdx][field]) opts.add(i);
+    }
+  }
+  const arr = [...opts];
+  shuffle(arr);
+  return arr.map(i=>({i, text: ITEMS[i][field]}));
+}
+
+function render(){
+  const pool = filteredIndices();
+  if(!pool.includes(order[idx])) idx = 0;
+  if(idx>=pool.length) idx=0;
+  const i = pool[idx];
+  current = i;
+  currentAsk = pickQuestionType();
+
+  const it = ITEMS[i];
+  const metaTags = [`領域：${it.region}`, FAVS[i]?"★お気に入り":"", `#${idx+1}/${pool.length}`].filter(Boolean);
+  qmeta.textContent = metaTags.join(" · ");
+  reveal.classList.add("hidden");
+  $("reveal").open=false;
+
+  const qa = {
+    name_to_nerve: {q:`次の筋の<strong>神経支配</strong>は？<br><span class="pill tag">${it.name_ja} <span class="qmeta">(${it.name_lat})</span></span>`, correct: it.nerve, field:"nerve"},
+    name_to_oi:    {q:`次の筋の<strong>起始・停止</strong>は？<br><span class="pill tag">${it.name_ja} <span class="qmeta">(${it.name_lat})</span></span>`, correct:`起始：${it.origin}<br>停止：${it.insertion}`, field:null},
+    nerve_to_name: {q:`この<strong>神経</strong>が支配する筋は？<br><span class="pill tag">${it.nerve}</span>`, correct: it.name_ja, field:"name_ja"},
+    oi_to_name:    {q:`この<strong>起始・停止</strong>を持つ筋は？<br><span class="pill tag">起始：${it.origin}／停止：${it.insertion}</span>`, correct: it.name_ja, field:"name_ja"}
+  }[currentAsk];
+
+  qtext.innerHTML = qa.q;
+  explain.innerHTML = `
+    <div class="stack">
+      <span class="pill">筋名：<b>${it.name_ja}</b> <span class="qmeta">(${it.name_lat})</span></span>
+      <span class="pill">領域：${it.region}</span>
+    </div>
+    <div style="margin-top:8px; line-height:1.6">
+      <div><b>神経支配：</b>${it.nerve}</div>
+      <div><b>起始：</b>${it.origin}</div>
+      <div><b>停止：</b>${it.insertion}</div>
+    </div>
+  `;
+
+  // Mode rendering
+  choices.innerHTML = "";
+  typeWrap.classList.add("hidden");
+  if(modeSel.value==="mc"){
+    // field to build distractors
+    if(currentAsk==="name_to_oi"){
+      // Special: options are blocks of O/I text
+      const opts = makeMCOptions(i, "origin").map(o=>({i:o.i, text:`起始：${ITEMS[o.i].origin}<br>停止：${ITEMS[o.i].insertion}`}));
+      opts.forEach(opt=>{
+        const btn = document.createElement("button");
+        btn.className="choice";
+        btn.innerHTML = opt.text;
+        btn.onclick=()=>grade(opt.i===i, btn);
+        choices.appendChild(btn);
+      });
+    }else if(currentAsk==="name_to_nerve"){
+      const opts = makeMCOptions(i, "nerve");
+      opts.forEach(opt=>{
+        const btn = document.createElement("button");
+        btn.className="choice";
+        btn.innerHTML = opt.text;
+        btn.onclick=()=>grade(opt.i===i, btn);
+        choices.appendChild(btn);
+      });
+    }else{
+      // answer is muscle name, distract by name_ja
+      const opts = makeMCOptions(i, "name_ja");
+      opts.forEach(opt=>{
+        const btn = document.createElement("button");
+        btn.className="choice";
+        btn.textContent = ITEMS[opt.i].name_ja;
+        btn.onclick=()=>grade(opt.i===i, btn);
+        choices.appendChild(btn);
+      });
+    }
+  }else if(modeSel.value==="type"){
+    typeWrap.classList.remove("hidden");
+    typeInput.value="";
+    typeInput.placeholder = (currentAsk==="nerve_to_name"||currentAsk==="oi_to_name") ? "筋名を入力（例：三角筋）" : (currentAsk==="name_to_nerve" ? "神経名を入力（例：腋窩神経）" : "起始/停止を書いてもOK");
+  }else{
+    // flashcard
+    const btn = document.createElement("button");
+    btn.className="choice";
+    btn.innerHTML = "<b>タップで答えを表示</b>";
+    btn.onclick=()=>{ reveal.classList.remove("hidden"); $("reveal").open=true; };
+    choices.appendChild(btn);
+  }
+
+  updateStatsUI();
+}
+
+function normalize(str){
+  return (str||"").toString().toLowerCase()
+    .replace(/\s+/g,"").replace(/[（）()・\/]/g,"");
+}
+
+function grade(isCorrect, btn){
+  reveal.classList.remove("hidden");
+  $("reveal").open=true;
+
+  if(isCorrect){
+    btn && btn.classList.add("correct");
+    STATS.right++; STATS.streak++;
+    // remove from misses if present
+    STATS.misses = STATS.misses.filter(m=>m!==current);
+  }else{
+    btn && btn.classList.add("wrong");
+    STATS.wrong++; STATS.streak=0;
+    if(!STATS.misses.includes(current)) STATS.misses.push(current);
+  }
+  saveStats(STATS);
+  updateStatsUI();
+}
+
+function gradeTyping(){
+  const it = ITEMS[current];
+  const ans = typeInput.value.trim();
+  if(!ans){ typeInput.focus(); return; }
+  let ok=false;
+  if(currentAsk==="name_to_nerve"){
+    ok = normalize(ans).includes(normalize(it.nerve));
+  }else if(currentAsk==="name_to_oi"){
+    ok = normalize(ans).includes(normalize(it.origin)) || normalize(ans).includes(normalize(it.insertion));
+  }else{
+    ok = normalize(ans)===normalize(it.name_ja) || normalize(ans)===normalize(it.name_lat);
+  }
+  grade(ok, null);
+}
+
+function updateStatsUI(){
+  statRight.textContent = STATS.right;
+  statWrong.textContent = STATS.wrong;
+  streak.textContent = STATS.streak;
+  favCount.textContent = Object.values(FAVS).filter(Boolean).length;
+}
+
+function toJSONText(){
+  return JSON.stringify(ITEMS, null, 2);
+}
+
+function fromJSONText(txt){
+  const arr = JSON.parse(txt);
+  if(!Array.isArray(arr)) throw new Error("配列ではありません");
+  // 軽い検証
+  for(const o of arr){
+    ["name_ja","name_lat","region","nerve","origin","insertion"].forEach(k=>{
+      if(typeof o[k] !== "string") throw new Error("項目の型が不正です: "+k);
+    });
+  }
+  return arr;
+}
+
+// ====== イベント ======
+$("next").onclick=()=>{ idx=(idx+1)%filteredIndices().length; render(); }
+$("prev").onclick=()=>{ idx=(idx-1+filteredIndices().length)%filteredIndices().length; render(); }
+$("again").onclick=()=>render();
+$("typeCheck").onclick=gradeTyping;
+$("typeShow").onclick=()=>{ reveal.classList.remove("hidden"); $("reveal").open=true; };
+
+$("shuffle").onclick=()=>{ order = shuffle(filteredIndices()); idx=0; render(); }
+$("onlyMiss").onclick=()=>{ PREFS.onlyMiss = !PREFS.onlyMiss; savePrefs(PREFS); $("onlyMiss").classList.toggle("fav", PREFS.onlyMiss); idx=0; render(); };
+$("toggleFav").onclick=(e)=>{
+  if(!current) return;
+  FAVS[current] = !FAVS[current];
+  saveFav(FAVS);
+  // 長押しでお気に入りのみトグル
+  e.currentTarget.onmousedown = (ev)=>{
+    const t = setTimeout(()=>{ PREFS.onlyFav=!PREFS.onlyFav; savePrefs(PREFS); idx=0; render(); }, 500);
+    e.currentTarget.onmouseup = ()=>clearTimeout(t);
+    e.currentTarget.onmouseleave = ()=>clearTimeout(t);
+  };
+  render();
+};
+
+regionSel.onchange=()=>{ PREFS.region = regionSel.value; savePrefs(PREFS); idx=0; render(); };
+modeSel.onchange=()=>{ PREFS.mode = modeSel.value; savePrefs(PREFS); render(); };
+askSel.onchange=()=>{ PREFS.ask = askSel.value; savePrefs(PREFS); render(); };
+
+$("reset").onclick=()=>{
+  if(confirm("成績と間違いリストをリセットしますか？")){
+    STATS = {right:0, wrong:0, streak:0, misses:[], last:0}; saveStats(STATS); updateStatsUI();
+  }
+};
+
+$("jsonArea").value = toJSONText();
+$("applyJson").onclick=()=>{
+  try{
+    const arr = fromJSONText($("jsonArea").value);
+    ITEMS = arr; saveItems(ITEMS);
+    order = [...ITEMS.keys()]; idx=0; render();
+    alert("更新しました");
+  }catch(e){ alert("エラー: "+e.message); }
+};
+$("downloadJson").onclick=()=>{
+  const blob = new Blob([toJSONText()], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "muscle-quiz-data.json"; a.click();
+  URL.revokeObjectURL(url);
+};
+
+// 初期化
+order = shuffle(filteredIndices());
+render();
+</script>
+</body>
+</html>
